@@ -12,7 +12,7 @@ struct BluetoothDevice: Identifiable, Hashable {
 
     var symbol: String {
         switch kind {
-        case .headphones: name.localizedCaseInsensitiveContains("airpods") ? "airpods" : "headphones"
+        case .headphones: headphonesSymbol(name)
         case .audio: "hifispeaker"
         case .keyboard: "keyboard"
         case .mouse: "computermouse"

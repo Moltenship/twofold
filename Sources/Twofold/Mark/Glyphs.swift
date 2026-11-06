@@ -30,24 +30,51 @@ enum Glyphs {
         return NSFont(descriptor: descriptor, size: size) ?? base
     }
 
-    /// The menu bar battery: a body filled to the level and a small cap.
-    static func battery(_ ctx: CGContext, in rect: CGRect, level: Double, charging: Bool, color: NSColor, alpha: CGFloat) {
-        let cap = CGRect(x: rect.maxX - 1.6, y: rect.midY - 2, width: 1.6, height: 4)
-        let body = CGRect(x: rect.minX, y: rect.minY, width: rect.width - 2.2, height: rect.height)
-        let path = CGPath(roundedRect: body, cornerWidth: 3.4, cornerHeight: 3.4, transform: nil)
+    /// The body of the macOS menu bar battery, measured from the system's status item.
+    static let batteryBody = CGSize(width: 23, height: 12)
+    static let batterySize = CGSize(width: batteryBody.width + 2.4, height: batteryBody.height)
+
+    /// The menu bar battery: a body filled to the level, a cap, and the percentage and plug bolt cut out of it.
+    static func battery(_ ctx: CGContext, in rect: CGRect, level: Double, plugged: Bool, charging: Bool, percent: Bool,
+                        color: NSColor, alpha: CGFloat) {
+        let body = CGRect(x: rect.minX, y: rect.midY - batteryBody.height / 2, width: batteryBody.width, height: batteryBody.height)
+        let cap = CGRect(x: body.maxX + 1, y: rect.midY - 2, width: 1.4, height: 4)
+        let path = CGPath(roundedRect: body, cornerWidth: 3.8, cornerHeight: 3.8, transform: nil)
+        let level = min(max(level, 0), 1)
         ctx.saveGState()
         ctx.setAlpha(alpha)
         ctx.beginTransparencyLayer(auxiliaryInfo: nil)
-        ctx.setFillColor(color.withAlphaComponent(0.35).cgColor)
+        ctx.setFillColor(color.withAlphaComponent(color.alphaComponent * 0.4).cgColor)
         ctx.addPath(path)
-        ctx.fillPath()
-        ctx.addPath(CGPath(roundedRect: cap, cornerWidth: 0.8, cornerHeight: 0.8, transform: nil))
+        ctx.addPath(CGPath(roundedRect: cap, cornerWidth: 0.7, cornerHeight: 1.4, transform: nil))
         ctx.fillPath()
         let fill: NSColor = charging ? .systemGreen : level <= 0.2 ? .systemRed : color
+        ctx.saveGState()
         ctx.addPath(path)
         ctx.clip()
         ctx.setFillColor(fill.cgColor)
-        ctx.fill(CGRect(x: body.minX, y: body.minY, width: body.width * CGFloat(min(max(level, 0), 1)), height: body.height))
+        ctx.fill(CGRect(x: body.minX, y: body.minY, width: body.width * level, height: body.height))
+        ctx.restoreGState()
+
+        let font = NSFont.systemFont(ofSize: 10.5, weight: .semibold)
+        let text = percent ? "\(Int((level * 100).rounded()))" as NSString : nil
+        let textWidth = text?.size(withAttributes: [.font: font]).width ?? 0
+        let bolt = plugged ? symbol("bolt.fill", point: 7.5, weight: .regular, color: .black) : nil
+        let boltWidth = bolt.map { $0.size.width - 1.5 } ?? 0
+        if text != nil || bolt != nil {
+            ctx.setBlendMode(.destinationOut)
+            let width = textWidth + (text != nil && bolt != nil ? 1 : 0) + boltWidth
+            var x = body.midX - width / 2
+            if let text {
+                let baseline = body.midY - font.capHeight / 2
+                text.draw(at: CGPoint(x: x, y: baseline + font.descender), withAttributes: [.font: font, .foregroundColor: NSColor.black])
+                x += textWidth + 1
+            }
+            if let bolt {
+                bolt.draw(in: CGRect(x: x - 0.75, y: body.midY - bolt.size.height / 2, width: bolt.size.width, height: bolt.size.height),
+                          from: .zero, operation: .destinationOut, fraction: 1)
+            }
+        }
         ctx.endTransparencyLayer()
         ctx.restoreGState()
     }

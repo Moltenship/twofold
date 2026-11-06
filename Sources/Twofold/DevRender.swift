@@ -5,7 +5,7 @@ import AppKit
 enum DevRender {
     static func sampleRenderer(foreground: NSColor = .white, style: RingStyle = .solid, palette: Palette = .automatic) -> MarkRenderer {
         MarkRenderer(
-            ring: Reading(value: 0.8, glyph: .battery(level: 0.8, charging: false), text: nil, number: "80", tint: .systemGreen, spoken: ""),
+            ring: Reading(value: 0.8, glyph: .battery(level: 0.8, plugged: false, charging: false, percent: false), text: nil, number: "80", tint: .systemGreen, spoken: ""),
             center: Reading(value: 1, glyph: .symbol("wifi", variable: 1), text: nil, number: nil, tint: nil, spoken: ""),
             dots: Reading(value: 0.65, glyph: .symbol("memorychip"), text: "65%", number: "65", tint: nil, spoken: ""),
             style: style, thickness: .regular, scale: 1, palette: palette, foreground: foreground)
@@ -59,18 +59,13 @@ enum DevRender {
             ring: Reading(value: 0.78, glyph: .symbol("wifi"), text: nil, number: nil, tint: nil, spoken: ""),
             center: Reading(value: 1, glyph: .symbol("wifi", variable: 1), text: nil, number: nil, tint: nil, spoken: ""),
             dots: Reading(value: 0.75, glyph: .symbol("memorychip"), text: nil, number: nil, tint: nil, spoken: ""),
-            style: .gradient, thickness: .regular, scale: 1, palette: .aurora, foreground: .white)
+            style: .gradient, thickness: .regular, scale: 24, palette: .aurora, foreground: .white)
         let data = png(width: 1024, height: 1024, scale: 1, background: nil) { b in
             let tile = b.insetBy(dx: 100, dy: 100)
             let path = NSBezierPath(roundedRect: tile, xRadius: 185, yRadius: 185)
             NSGradient(colors: [NSColor(srgbRed: 0.13, green: 0.12, blue: 0.2, alpha: 1), NSColor(srgbRed: 0.04, green: 0.04, blue: 0.07, alpha: 1)])?
                 .draw(in: path, angle: -90)
-            guard let ctx = NSGraphicsContext.current?.cgContext else { return }
-            ctx.saveGState()
-            ctx.translateBy(x: b.midX - 24 * 24 / 2, y: b.midY - 24 * 24 / 2 + 16)
-            ctx.scaleBy(x: 24, y: 24)
-            r.draw(in: CGRect(x: 0, y: 0, width: 24, height: 24), t: 0)
-            ctx.restoreGState()
+            r.draw(in: CGRect(x: b.midX - 24 * 24 / 2, y: b.midY - 24 * 24 / 2 + 16, width: 24 * 24, height: 24 * 24), t: 0)
         }
         try? data?.write(to: file)
     }

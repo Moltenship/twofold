@@ -96,9 +96,15 @@ enum Palette: String, CaseIterable, Codable {
     }
 }
 
-enum ClickAction: String, CaseIterable, Codable {
-    case unfold, popover
-    var title: String { self == .unfold ? "Unfold into Icons" : "Show Popover" }
+enum UnfoldTrigger: String, CaseIterable, Codable {
+    case click, hover, never
+    var title: String {
+        switch self {
+        case .click: "On Click"
+        case .hover: "On Hover"
+        case .never: "Never"
+        }
+    }
 }
 
 struct Profile: Codable, Identifiable, Hashable {
@@ -131,7 +137,7 @@ final class Prefs {
     var hiddenRows: Set<Module> { didSet { save() } }
     var showDetails: Bool { didSet { save() } }
     var profiles: [Profile] { didSet { save() } }
-    var clickAction: ClickAction { didSet { save() } }
+    var unfoldOn: UnfoldTrigger { didSet { save() } }
     var showMoments: Bool { didSet { save() } }
 
     private let defaults = UserDefaults.standard
@@ -156,7 +162,7 @@ final class Prefs {
         hiddenRows = load("hiddenRows", [])
         showDetails = load("showDetails", true)
         profiles = load("profiles", [])
-        clickAction = load("clickAction", .unfold)
+        unfoldOn = load("unfoldOn", .click)
         showMoments = load("showMoments", true)
         loading = false
     }
@@ -189,7 +195,7 @@ final class Prefs {
         put("hiddenRows", hiddenRows)
         put("showDetails", showDetails)
         put("profiles", profiles)
-        put("clickAction", clickAction)
+        put("unfoldOn", unfoldOn)
         put("showMoments", showMoments)
         NotificationCenter.default.post(name: Prefs.changed, object: nil)
     }

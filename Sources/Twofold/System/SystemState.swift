@@ -5,7 +5,8 @@ import Observation
 struct Reading {
     enum Glyph: Equatable {
         case symbol(String, variable: Double? = nil)
-        case battery(level: Double, charging: Bool)
+        /// The menu bar battery; `percent` follows Control Center → Battery → Show Percentage.
+        case battery(level: Double, plugged: Bool, charging: Bool, percent: Bool)
         case bluetooth
     }
 
@@ -109,7 +110,7 @@ final class SystemState {
         case .battery:
             let b = battery
             let tint: NSColor = b.charging ? green : b.level <= 0.2 ? red : b.lowPowerMode ? .systemYellow : green
-            return Reading(value: b.present ? b.level : 0, glyph: .battery(level: b.level, charging: b.charging),
+            return Reading(value: b.present ? b.level : 0, glyph: .battery(level: b.level, plugged: b.pluggedIn, charging: b.charging, percent: b.showPercentage),
                            text: nil, number: b.present ? percent(b.level) : "–", tint: tint,
                            spoken: b.present ? "Battery \(percent(b.level))%, \(b.stateText)" : "No battery")
         case .wifi:

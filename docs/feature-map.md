@@ -13,7 +13,7 @@ One status item replaces three. The ring, the center and the dots each carry a r
 | # | Feature | Priority | Reference |
 |---|---------|----------|-----------|
 | 01 | Menu bar mark | P0 | [01](feature-reference/01-mark/feature.md) |
-| 02 | Unfold on click | P0 | [02](feature-reference/02-unfold/feature.md) |
+| 02 | Unfold | P0 | [02](feature-reference/02-unfold/feature.md) |
 | 03 | Popover and pages | P0 | [03](feature-reference/03-popover/feature.md) |
 | 04 | Battery | P0 | [04](feature-reference/04-battery/feature.md) |
 | 05 | Wi-Fi | P0 | [05](feature-reference/05-wifi/feature.md) |
@@ -37,7 +37,6 @@ One status item replaces three. The ring, the center and the dots each carry a r
 
 ## Out of scope
 
-- Unfold or popover on hover. Twofold responds to clicks only.
 - Licensing, Pro, and the Pro sales tab. Everything the alternative sells is free.
 - Telemetry, update checks, and any network access.
 - Sandboxing and the App Store. Twofold is built from source and signed ad hoc.
@@ -46,16 +45,17 @@ One status item replaces three. The ring, the center and the dots each carry a r
 
 ### 01 Menu bar mark
 - Same geometry as the alternative: ring from 215° sweeping 256° clockwise, four dots on the same circle in the gap, glyph or number in the center. Sizes scale with Icon Size.
-- Drawn by Twofold, not composed from images, so every frame of the unfold is the same code path as the resting mark.
+- Drawn by Twofold, not composed from images, so every frame of the unfold is the same code path as the resting mark. Symbols are rendered at the size they appear, never as scaled bitmaps, so they stay sharp at any icon size and in the settings previews.
 - Lit dots = the value in quarters, rounded, at least one when the value is above zero. Unlit dots are smaller and dim.
 - Center shows a glyph for Wi-Fi, Bluetooth, Volume and Network, and the number for Battery, Memory, CPU and Disk.
 - Accessibility description names each slot's reading, as the alternative does.
 
-### 02 Unfold on click
+### 02 Unfold
 - A click on the folded mark unfolds it; the motion copies the alternative frame for frame: the item widens to the left, the ring spins and straightens into a bar that becomes its icon, the center glyph grows and slides, the dots line up, bunch, and become their icon and value. About 370 ms with an ease-out, then a short settle.
 - Unfolded, a click on an icon opens the popover at that module's page, under that icon. A click between icons opens the full list.
+- Unfolded icons copy the system menu bar items they stand for: Wi-Fi and Sound at the system's 15 pt, and the battery drawn like the system one, with the percentage and plug bolt cut out of it when Control Center → Battery → Show Percentage is on.
 - It folds back, the exact reverse, when the popover closes, on a click anywhere else, or after 6 s without a click while the popover is closed.
-- Settings → General → Click chooses Unfold into Icons (default) or Show Popover. Right-click always opens the full list.
+- Settings → General → Unfold: On Click (default), On Hover, or Never. On Hover unfolds when the pointer enters the mark and folds 0.35 s after it leaves, unless a popover is open; there is no idle fold. Never makes a click open the full list. Right-click always opens the full list.
 - Reduce Motion replaces the morph with a crossfade.
 
 ### 03 Popover and pages
@@ -97,7 +97,7 @@ One status item replaces three. The ring, the center and the dots each carry a r
 
 ### 13 Live moments
 - Charging started or stopped, battery low (20% and 10%), mute toggled, an output device change, a Bluetooth device connected, a drive mounted.
-- The center glyph crossfades to the event's glyph, the ring may show the event's value, and a two-line label widens the item to the right of the mark for 2.5 s, then everything steps back. Moments never interrupt an unfold.
+- No text: the center glyph crossfades to the event's glyph (the headphones model, a drive, a plug), and the ring may show the event's value, for 2.5 s, then steps back. Moments never interrupt an unfold, and a repeat of the moment already playing or queued is dropped.
 - On by default, Settings → General → Show moments.
 
 ### 14 Indicator settings
@@ -108,4 +108,4 @@ One status item replaces three. The ring, the center and the dots each carry a r
 - Profiles save the three slots. "Add the three starters" adds Work, Travel, Minimal. With profiles, a segmented switcher sits at the top of the popover.
 
 ### 16 General settings
-- Launch at login through `SMAppService`, Click action, Show moments.
+- Launch at login through `SMAppService`, Unfold trigger, Show moments.

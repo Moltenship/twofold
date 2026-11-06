@@ -1,13 +1,11 @@
 import AppKit
 
-/// A short event the folded mark shows with a label beside it.
-struct Moment {
+/// A short event the folded mark shows in its center, and on the ring when it has a value.
+struct Moment: Equatable {
     var glyph: Reading.Glyph?
     var number: String?
     var ringValue: Double?
     var ringTint: NSColor?
-    var title: String
-    var subtitle: String
 }
 
 /// Draws the mark at any point of the unfold, `t` = 0 folded … 1 unfolded, in one code path,
@@ -45,9 +43,9 @@ struct MarkRenderer {
 
     static let pad: CGFloat = 5
     static let gap: CGFloat = 13
-    static let glyphPoint: CGFloat = 14
+    /// The point size macOS draws its own Wi-Fi and Sound items at.
+    static let glyphPoint: CGFloat = 15
     static let textFont = NSFont.monospacedDigitSystemFont(ofSize: 13, weight: .regular)
-    static let batterySize = CGSize(width: 24, height: 11.5)
 
     func layout(height: CGFloat) -> Layout {
         let sizes = [ring, center, dots].map(contentSize)
@@ -63,7 +61,7 @@ struct MarkRenderer {
 
     func glyphSize(_ glyph: Reading.Glyph) -> CGSize {
         switch glyph {
-        case .battery: Self.batterySize
+        case .battery: Glyphs.batterySize
         case .bluetooth: CGSize(width: 9, height: 14)
         case let .symbol(name, variable):
             Glyphs.symbol(name, variable: variable, point: Self.glyphPoint, weight: .regular, color: foreground)?.size ?? CGSize(width: 16, height: 14)
@@ -105,10 +103,10 @@ struct MarkRenderer {
         guard let ctx = NSGraphicsContext.current?.cgContext else { return }
         let height = bounds.height
         let l = layout(height: height)
-        // Unfolded coordinates sit flush right; so does the folded mark, unless a moment's label needs room on its right.
-        let labelShift = moment == nil ? 0 : (bounds.width - foldWidth) * 1
-        let dx = bounds.width - l.width - labelShift
+        // Unfolded coordinates sit flush right, and so does the folded mark.
+        let dx = bounds.width - l.width
         let c = CGPoint(x: l.width - foldWidth / 2, y: height / 2)
+        Self.baseScale = hypot(ctx.ctm.a, ctx.ctm.b)
 
         ctx.saveGState()
         ctx.translateBy(x: bounds.minX + dx, y: bounds.minY)
@@ -118,11 +116,10 @@ struct MarkRenderer {
         drawDots(ctx, center: c, frame: l.dots, t: t)
 
         ctx.restoreGState()
-
-        if let moment, m > 0 {
-            drawLabel(moment, x: bounds.minX + bounds.width - labelShift + 3, height: height, m: m)
-        }
     }
+
+    /// The device scale the mark started drawing at; symbols under a scaled transform re-render at their drawn size.
+    private static var baseScale: CGFloat = 1
 
     // MARK: Ring
 
@@ -130,7 +127,7 @@ struct MarkRenderer {
         let f = l.ring
         switch ring.glyph {
         case .battery:
-            return (CGPoint(x: f.minX + (Self.batterySize.width - 2.2) / 2, y: f.midY), Self.batterySize.width - 2.2)
+            return (CGPoint(x: f.minX + Glyphs.batteryBody.width / 2, y: f.midY), Glyphs.batteryBody.width)
         default:
             let g = glyphSize(ring.glyph)
             return (CGPoint(x: f.minX + g.width / 2, y: f.midY), min(g.width, 16))
@@ -186,7 +183,7 @@ struct MarkRenderer {
 
         if fade > 0 {
             let g = glyphSize(ring.glyph)
-            let frame = CGRect(x: target.center.x - (ring.glyph.isBattery ? (Self.batterySize.width - 2.2) / 2 : g.width / 2),
+            let frame = CGRect(x: target.center.x - (ring.glyph.isBattery ? Glyphs.batteryBody.width / 2 : g.width / 2),
                                y: target.center.y - g.height / 2, width: g.width, height: g.height)
             drawContent(ring, at: frame.origin, height: g.height, alpha: fade, scale: settle(t))
         }
@@ -308,29 +305,26 @@ struct MarkRenderer {
         guard let ctx = NSGraphicsContext.current?.cgContext else { return }
         switch glyph {
         case let .symbol(name, variable):
-            Glyphs.symbol(name, variable: variable, point: Self.glyphPoint, weight: .regular, color: foreground)?
-                .draw(in: rect, from: .zero, operation: .sourceOver, fraction: alpha)
-        case let .battery(level, charging):
-            Glyphs.battery(ctx, in: rect, level: level, charging: charging, color: foreground, alpha: alpha)
+            // NSImage rasterizes symbols for the size it is asked for, so under a scaled transform ask for the larger size.
+            let k = hypot(ctx.ctm.a, ctx.ctm.b) / Self.baseScale
+            guard abs(k - 1) > 0.02 else {
+                Glyphs.symbol(name, variable: variable, point: Self.glyphPoint, weight: .regular, color: foreground)?
+                    .draw(in: rect, from: .zero, operation: .sourceOver, fraction: alpha)
+                return
+            }
+            guard let image = Glyphs.symbol(name, variable: variable, point: (Self.glyphPoint * k * 4).rounded() / 4, weight: .regular, color: foreground)
+            else { return }
+            ctx.saveGState()
+            ctx.translateBy(x: rect.midX, y: rect.midY)
+            ctx.scaleBy(x: 1 / k, y: 1 / k)
+            image.draw(in: CGRect(x: -image.size.width / 2, y: -image.size.height / 2, width: image.size.width, height: image.size.height),
+                       from: .zero, operation: .sourceOver, fraction: alpha)
+            ctx.restoreGState()
+        case let .battery(level, plugged, charging, percent):
+            Glyphs.battery(ctx, in: rect, level: level, plugged: plugged, charging: charging, percent: percent, color: foreground, alpha: alpha)
         case .bluetooth:
             Glyphs.bluetooth(ctx, in: rect, color: foreground, alpha: alpha)
         }
-    }
-
-    private func drawLabel(_ moment: Moment, x: CGFloat, height: CGFloat, m: CGFloat) {
-        let title: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 10, weight: .semibold),
-                                                    .foregroundColor: foreground.withAlphaComponent(m)]
-        let sub: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 9, weight: .regular),
-                                                  .foregroundColor: foreground.withAlphaComponent(0.6 * m)]
-        let drift = (1 - m) * 1
-        (moment.title as NSString).draw(at: CGPoint(x: x, y: height / 2 - 0.5 - drift), withAttributes: title)
-        (moment.subtitle as NSString).draw(at: CGPoint(x: x, y: height / 2 - 11 - drift), withAttributes: sub)
-    }
-
-    static func labelWidth(_ moment: Moment) -> CGFloat {
-        let a = (moment.title as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: 10, weight: .semibold)]).width
-        let b = (moment.subtitle as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: 9)]).width
-        return ceil(max(a, b)) + 6
     }
 }
 

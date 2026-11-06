@@ -13,6 +13,7 @@ struct BatteryInfo: Equatable {
     var lowPowerMode = false
     var maxCapacity: Int?
     var cycleCount: Int?
+    var showPercentage = false
 
     var stateText: String {
         guard present else { return "No Battery" }
@@ -30,6 +31,8 @@ struct BatteryInfo: Equatable {
     static func read() -> BatteryInfo {
         var info = BatteryInfo()
         info.lowPowerMode = ProcessInfo.processInfo.isLowPowerModeEnabled
+        info.showPercentage = CFPreferencesCopyValue("BatteryShowPercentage" as CFString, "com.apple.controlcenter" as CFString,
+                                                     kCFPreferencesCurrentUser, kCFPreferencesCurrentHost) as? Bool ?? false
         let blob = IOPSCopyPowerSourcesInfo().takeRetainedValue()
         let sources = IOPSCopyPowerSourcesList(blob).takeRetainedValue() as [CFTypeRef]
         for source in sources {

@@ -11,13 +11,23 @@ struct AudioDevice: Identifiable, Hashable {
         switch transport {
         case kAudioDeviceTransportTypeBuiltIn: "laptopcomputer"
         case kAudioDeviceTransportTypeBluetooth, kAudioDeviceTransportTypeBluetoothLE:
-            name.localizedCaseInsensitiveContains("airpods") ? "airpods" : "headphones"
+            headphonesSymbol(name)
         case kAudioDeviceTransportTypeAirPlay: "airplayaudio"
         case kAudioDeviceTransportTypeHDMI, kAudioDeviceTransportTypeDisplayPort: "tv"
         case kAudioDeviceTransportTypeUSB: "cable.connector"
         default: "hifispeaker"
         }
     }
+}
+
+/// The SF Symbol macOS uses for a pair of headphones, guessed from its name.
+func headphonesSymbol(_ name: String) -> String {
+    let n = name.lowercased()
+    return if n.contains("airpods max") { "airpods.max" }
+    else if n.contains("airpods pro") { "airpods.pro" }
+    else if n.contains("airpods") { "airpods" }
+    else if n.contains("beats") { "beats.headphones" }
+    else { "headphones" }
 }
 
 struct AudioInfo: Equatable {

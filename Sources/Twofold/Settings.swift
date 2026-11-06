@@ -56,12 +56,12 @@ struct MarkPreview: NSViewRepresentable {
         override var intrinsicContentSize: NSSize { NSSize(width: size, height: size) }
 
         override func draw(_ dirtyRect: NSRect) {
-            guard var r = renderer, let ctx = NSGraphicsContext.current?.cgContext else { return }
+            guard var r = renderer else { return }
             r.foreground = effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? .white : NSColor(white: 0, alpha: 0.85)
-            let k = min(bounds.width, bounds.height) / 24
-            ctx.translateBy(x: (bounds.width - 24 * k) / 2, y: (bounds.height - 24 * k) / 2)
-            ctx.scaleBy(x: k, y: k)
-            r.draw(in: CGRect(x: 0, y: 0, width: 24, height: 24), t: 0)
+            // Drawn at size rather than under a scaled transform, so symbols stay vector-sharp.
+            let side = min(bounds.width, bounds.height)
+            r.scale = side / 24
+            r.draw(in: CGRect(x: (bounds.width - side) / 2, y: (bounds.height - side) / 2, width: side, height: side), t: 0)
         }
     }
 }
@@ -76,7 +76,7 @@ struct IndicatorSettings: View {
             guard let level else { return r }
             r.value = level
             if r.number != nil { r.number = "\(Int(level * 100))" }
-            if case .battery = r.glyph { r.glyph = .battery(level: level, charging: false) }
+            if case let .battery(_, plugged, charging, percent) = r.glyph { r.glyph = .battery(level: level, plugged: plugged, charging: charging, percent: percent) }
             if r.tint != nil { r.tint = level < 0.3 ? .systemRed : .systemGreen }
             return r
         }
@@ -248,11 +248,11 @@ struct GeneralSettings: View {
                 Toggle("Launch at login", isOn: $login.enabled)
             }
             Section {
-                Picker("Click", selection: $prefs.clickAction) {
-                    ForEach(ClickAction.allCases, id: \.self) { Text($0.title).tag($0) }
+                Picker("Unfold", selection: $prefs.unfoldOn) {
+                    ForEach(UnfoldTrigger.allCases, id: \.self) { Text($0.title).tag($0) }
                 }
             } footer: {
-                Text("Right-click always opens the popover.").font(.caption).foregroundStyle(.secondary)
+                Text("Click an unfolded icon to open its page. Right-click always opens the popover.").font(.caption).foregroundStyle(.secondary)
             }
             Section {
                 Toggle("Show moments", isOn: $prefs.showMoments)

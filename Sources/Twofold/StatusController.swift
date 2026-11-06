@@ -4,6 +4,7 @@ enum StatusMotion {
     static let unfoldDuration: Double = 0.52
     static let foldDuration: Double = 0.45
     static let idleFold: Double = 6
+    static let hoverFold: Double = 0.35
     static let momentIn: Double = 0.35
     static let momentHold: Double = 2.5
     static let momentOut: Double = 0.4
@@ -52,6 +53,7 @@ final class StatusController: NSObject, NSPopoverDelegate {
     private var link: CADisplayLink?
 
     private var idleTimer: Timer?
+    private var hoverFold: Timer?
     private var outsideMonitor: Any?
     private var popoverClosedAt: Date = .distantPast
 
@@ -69,6 +71,7 @@ final class StatusController: NSObject, NSPopoverDelegate {
         view.frame = button.bounds
         view.autoresizingMask = [.width, .height]
         button.addSubview(view)
+        button.addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self))
 
         popover.behavior = .transient
         popover.animates = true
@@ -99,10 +102,7 @@ final class StatusController: NSObject, NSPopoverDelegate {
     }
 
     private func layoutItem() {
-        var width = renderer.width(at: view.crossfade ? (t > 0 ? 1 : 0) : t, height: height)
-        if let moment, t == 0 {
-            width += (MarkRenderer.labelWidth(moment) + 3) * view.momentProgress
-        }
+        let width = renderer.width(at: view.crossfade ? (t > 0 ? 1 : 0) : t, height: height)
         if abs(item.length - width) > 0.25 { item.length = ceil(width) }
         view.t = t
         view.needsDisplay = true
@@ -132,13 +132,34 @@ final class StatusController: NSObject, NSPopoverDelegate {
             }
             return
         }
-        if target == 1 {
-            fold()
-        } else if Prefs.shared.clickAction == .unfold {
-            unfold()
-        } else {
-            show(page: nil, from: button.bounds)
+        switch Prefs.shared.unfoldOn {
+        case .click: target == 1 ? fold() : unfold()
+        case .hover, .never: show(page: nil, from: button.bounds)
         }
+    }
+
+    // MARK: Hover
+
+    @objc(mouseEntered:) func mouseEntered(with event: NSEvent) {
+        hoverFold?.invalidate()
+        if Prefs.shared.unfoldOn == .hover, !popover.isShown { unfold() }
+    }
+
+    @objc(mouseExited:) func mouseExited(with event: NSEvent) {
+        guard Prefs.shared.unfoldOn == .hover, !popover.isShown else { return }
+        hoverFold?.invalidate()
+        // Exits also fire while the item resizes under the pointer, so fold only once it is really outside.
+        hoverFold = Timer.scheduledTimer(withTimeInterval: StatusMotion.hoverFold, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                if self.popover.isShown { self.hoverFold?.invalidate() } else if !self.pointerInside { self.fold() }
+            }
+        }
+    }
+
+    private var pointerInside: Bool {
+        // The status item's own window can count as outside.
+        item.button?.window?.frame.contains(NSEvent.mouseLocation) == true
     }
 
     private func show(page: Module?, from rect: NSRect) {
@@ -157,7 +178,7 @@ final class StatusController: NSObject, NSPopoverDelegate {
         popoverClosedAt = Date()
         item.button?.highlight(false)
         model.closed()
-        if target == 1 { fold() }
+        if target == 1, !(Prefs.shared.unfoldOn == .hover && pointerInside) { fold() }
     }
 
     // MARK: Unfold
@@ -167,12 +188,11 @@ final class StatusController: NSObject, NSPopoverDelegate {
         endMoment()
         moments.removeAll()
         animate(to: 1)
+        guard Prefs.shared.unfoldOn == .click else { return }
         armIdleFold()
         outsideMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
             MainActor.assumeIsolated {
-                // The status item's own window can count as outside.
-                guard let self, !self.popover.isShown,
-                      self.item.button?.window?.frame.contains(NSEvent.mouseLocation) != true else { return }
+                guard let self, !self.popover.isShown, !self.pointerInside else { return }
                 self.fold()
             }
         }
@@ -180,6 +200,7 @@ final class StatusController: NSObject, NSPopoverDelegate {
 
     private func fold() {
         idleTimer?.invalidate()
+        hoverFold?.invalidate()
         if let outsideMonitor { NSEvent.removeMonitor(outsideMonitor) }
         outsideMonitor = nil
         animate(to: 0)
@@ -189,9 +210,7 @@ final class StatusController: NSObject, NSPopoverDelegate {
         idleTimer?.invalidate()
         idleTimer = Timer.scheduledTimer(withTimeInterval: StatusMotion.idleFold, repeats: false) { [weak self] _ in
             MainActor.assumeIsolated {
-                // The status item's own window can count as outside.
-                guard let self, !self.popover.isShown,
-                      self.item.button?.window?.frame.contains(NSEvent.mouseLocation) != true else { return }
+                guard let self, !self.popover.isShown, !self.pointerInside else { return }
                 self.fold()
             }
         }
@@ -256,7 +275,7 @@ final class StatusController: NSObject, NSPopoverDelegate {
     func show(_ moment: Moment) {
         guard Prefs.shared.showMoments, target == 0, t == 0, !popover.isShown else { return }
         if self.moment != nil {
-            if moments.count < 3 { moments.append(moment) }
+            if moments.count < 3, self.moment != moment, moments.last != moment { moments.append(moment) }
             return
         }
         begin(moment)
