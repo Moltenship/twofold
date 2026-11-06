@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleExecutable</key>
+	<string>Twofold</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
+	<key>CFBundleIdentifier</key>
+	<string>io.github.moltenship.twofold</string>
+	<key>CFBundleName</key>
+	<string>Twofold</string>
+	<key>CFBundleDisplayName</key>
+	<string>Twofold</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>0.1.0</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>14.0</string>
+	<key>LSUIElement</key>
+	<true/>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.utilities</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Twofold lists your paired Bluetooth devices and connects or disconnects them when you click one.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>macOS treats Wi-Fi network names as location data. Twofold uses it only to show your network's name and the networks around you.</string>
+	<key>NSLocationUsageDescription</key>
+	<string>macOS treats Wi-Fi network names as location data. Twofold uses it only to show your network's name and the networks around you.</string>
+	<key>NSHumanReadableCopyright</key>
+	<string>MIT License</string>
+</dict>
+</plist>
