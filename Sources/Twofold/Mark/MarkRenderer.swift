@@ -25,10 +25,12 @@ struct MarkRenderer {
 
     static let ringStart: CGFloat = 215 * .pi / 180
     static let ringSweep: CGFloat = 256 * .pi / 180
-    static let dotAngles: [CGFloat] = [237, 259.5, 282, 304.5].map { $0 * .pi / 180 }
+    static let dotAngles: [CGFloat] = [233.2, 257.6, 282.4, 306.8].map { $0 * .pi / 180 }
+    /// The folded center glyph's box, so the Wi-Fi comes out 9 pt wide like the alternative's.
+    static let foldedGlyph: CGFloat = 10.8
 
-    var radius: CGFloat { 8.8 * scale }
-    var dotRadius: CGFloat { 9.4 * scale }
+    var radius: CGFloat { 8.7 * scale }
+    var dotRadius: CGFloat { 8.7 * scale }
     var lineWidth: CGFloat { thickness.width * max(scale, 0.85) }
     var foldWidth: CGFloat { (24 * scale).rounded() }
 
@@ -174,11 +176,17 @@ struct MarkRenderer {
             }
         }
 
+        let bolt = ring.glyph.isPlugged && (moment?.ringValue == nil || m == 0) ? 1 - Ease.smooth(Ease.seg(t, 0, 0.2)) : 0
+        if bolt > 0 { ctx.beginTransparencyLayer(auxiliaryInfo: nil) }
         if let moment, m > 0, let value = moment.ringValue {
             arc(ring.value, tint: ring.tint, alpha: (1 - m) * (1 - fade))
             arc(value, tint: moment.ringTint, alpha: m * (1 - fade))
         } else {
             arc(ring.value, tint: ring.tint, alpha: 1 - fade)
+        }
+        if bolt > 0 {
+            drawTipBolt(ctx, center: c, value: ring.value, alpha: bolt)
+            ctx.endTransparencyLayer()
         }
 
         if fade > 0 {
@@ -189,6 +197,21 @@ struct MarkRenderer {
         }
     }
 
+    /// While plugged in, a bolt sits on the ring's tip, cut out of the stroke beneath it.
+    private func drawTipBolt(_ ctx: CGContext, center c: CGPoint, value: Double, alpha: CGFloat) {
+        let a = Self.ringStart - Self.ringSweep * CGFloat(min(max(value, 0), 1))
+        let tip = CGPoint(x: c.x + radius * cos(a), y: c.y + radius * sin(a))
+        let color = Glyphs.sample(ringColors(value: value, tint: ring.tint), at: 1)
+        let point = (6 * scale * 4).rounded() / 4
+        guard let bolt = Glyphs.symbol("bolt.fill", point: point, weight: .bold, color: color),
+              let halo = Glyphs.symbol("bolt.fill", point: point, weight: .black, color: .black) else { return }
+        func rect(_ size: CGSize, _ k: CGFloat) -> CGRect {
+            CGRect(x: tip.x - size.width * k / 2, y: tip.y - size.height * k / 2, width: size.width * k, height: size.height * k)
+        }
+        halo.draw(in: rect(halo.size, 1.4), from: .zero, operation: .destinationOut, fraction: alpha)
+        bolt.draw(in: rect(bolt.size, 1), from: .zero, operation: .sourceOver, fraction: alpha)
+    }
+
     private func settle(_ t: CGFloat) -> CGFloat { 0.86 + 0.14 * Ease.out(Ease.seg(t, 0.55, 1)) }
 
     // MARK: Center
@@ -197,7 +220,7 @@ struct MarkRenderer {
         let move = Ease.smooth(Ease.seg(t, 0.02, 0.5))
         let full = contentSize(center)
         let glyph = glyphSize(center.glyph)
-        let small = 9.6 * scale / max(glyph.width, glyph.height) * (center.glyph == .bluetooth ? 0.9 : 1)
+        let small = Self.foldedGlyph * scale / max(glyph.width, glyph.height) * (center.glyph == .bluetooth ? 0.9 : 1)
         // The glyph's center travels from the ring's center to its unfolded spot.
         let target = CGPoint(x: frame.minX + glyph.width / 2, y: frame.midY)
         let p = CGPoint(x: c.x + (target.x - c.x) * move, y: c.y + (target.y - c.y) * move)
@@ -216,8 +239,10 @@ struct MarkRenderer {
             ctx.saveGState()
             ctx.translateBy(x: p.x, y: p.y)
             ctx.scaleBy(x: s, y: s)
-            drawContent(center, at: CGPoint(x: -glyph.width / 2, y: -full.height / 2), height: full.height, alpha: normal, scale: 1,
-                        textAlpha: Ease.smooth(Ease.seg(t, 0.5, 0.75)))
+            // The folded glyph turns into the system's regular one as it grows.
+            let origin = CGPoint(x: -glyph.width / 2, y: -full.height / 2)
+            drawContent(center, at: origin, height: full.height, alpha: normal * (1 - move), scale: 1, textAlpha: 0, folded: true)
+            drawContent(center, at: origin, height: full.height, alpha: normal * move, scale: 1, textAlpha: Ease.smooth(Ease.seg(t, 0.5, 0.75)))
             ctx.restoreGState()
         }
 
@@ -226,11 +251,11 @@ struct MarkRenderer {
                 drawNumber(number, at: c, scale: 1, alpha: m)
             } else if let g = moment.glyph {
                 let size = glyphSize(g)
-                let sm = 9.6 * scale / max(size.width, size.height)
+                let sm = Self.foldedGlyph * scale / max(size.width, size.height)
                 ctx.saveGState()
                 ctx.translateBy(x: c.x, y: c.y)
                 ctx.scaleBy(x: sm, y: sm)
-                drawGlyph(g, in: CGRect(x: -size.width / 2, y: -size.height / 2, width: size.width, height: size.height), alpha: m)
+                drawGlyph(g, in: CGRect(x: -size.width / 2, y: -size.height / 2, width: size.width, height: size.height), alpha: m, folded: true)
                 ctx.restoreGState()
             }
         }
@@ -267,7 +292,7 @@ struct MarkRenderer {
             let lift = sin(move * .pi) * 1.2
             let p = CGPoint(x: start.x + (end.x - start.x) * move, y: start.y + (end.y - start.y) * move - lift)
             let on = i < lit
-            let d0: CGFloat = on ? 2.25 * scale : 1.6 * scale
+            let d0: CGFloat = on ? 2.6 * scale : 1.95 * scale
             let d = d0 + (1.9 - d0) * move
             let alpha = (on ? 1 : 0.4) * (1 - fade)
             guard alpha > 0 else { continue }
@@ -283,7 +308,8 @@ struct MarkRenderer {
     // MARK: Glyphs and labels
 
     /// An unfolded icon with its value, scaled about its center.
-    private func drawContent(_ r: Reading, at origin: CGPoint, height: CGFloat, alpha: CGFloat, scale s: CGFloat, textAlpha: CGFloat = 1) {
+    private func drawContent(_ r: Reading, at origin: CGPoint, height: CGFloat, alpha: CGFloat, scale s: CGFloat, textAlpha: CGFloat = 1,
+                             folded: Bool = false) {
         guard alpha > 0, let ctx = NSGraphicsContext.current?.cgContext else { return }
         let size = contentSize(r)
         let g = glyphSize(r.glyph)
@@ -292,7 +318,7 @@ struct MarkRenderer {
         ctx.translateBy(x: mid.x, y: mid.y)
         ctx.scaleBy(x: s, y: s)
         ctx.translateBy(x: -mid.x, y: -mid.y)
-        drawGlyph(r.glyph, in: CGRect(x: origin.x, y: origin.y + (height - g.height) / 2, width: g.width, height: g.height), alpha: alpha)
+        drawGlyph(r.glyph, in: CGRect(x: origin.x, y: origin.y + (height - g.height) / 2, width: g.width, height: g.height), alpha: alpha, folded: folded)
         if let text = r.text, textAlpha > 0 {
             let attrs: [NSAttributedString.Key: Any] = [.font: Self.textFont, .foregroundColor: foreground.withAlphaComponent(alpha * textAlpha)]
             let ts = (text as NSString).size(withAttributes: attrs)
@@ -301,23 +327,26 @@ struct MarkRenderer {
         ctx.restoreGState()
     }
 
-    private func drawGlyph(_ glyph: Reading.Glyph, in rect: CGRect, alpha: CGFloat) {
+    /// Folded, glyphs are semibold and centered on their ink, as the alternative draws them.
+    private func drawGlyph(_ glyph: Reading.Glyph, in rect: CGRect, alpha: CGFloat, folded: Bool = false) {
         guard let ctx = NSGraphicsContext.current?.cgContext else { return }
         switch glyph {
         case let .symbol(name, variable):
             // NSImage rasterizes symbols for the size it is asked for, so under a scaled transform ask for the larger size.
             let k = hypot(ctx.ctm.a, ctx.ctm.b) / Self.baseScale
-            guard abs(k - 1) > 0.02 else {
-                Glyphs.symbol(name, variable: variable, point: Self.glyphPoint, weight: .regular, color: foreground)?
+            let weight: NSFont.Weight = folded ? .semibold : .regular
+            guard folded || abs(k - 1) > 0.02 else {
+                Glyphs.symbol(name, variable: variable, point: Self.glyphPoint, weight: weight, color: foreground)?
                     .draw(in: rect, from: .zero, operation: .sourceOver, fraction: alpha)
                 return
             }
-            guard let image = Glyphs.symbol(name, variable: variable, point: (Self.glyphPoint * k * 4).rounded() / 4, weight: .regular, color: foreground)
+            guard let image = Glyphs.symbol(name, variable: variable, point: (Self.glyphPoint * k * 4).rounded() / 4, weight: weight, color: foreground)
             else { return }
             ctx.saveGState()
             ctx.translateBy(x: rect.midX, y: rect.midY)
             ctx.scaleBy(x: 1 / k, y: 1 / k)
-            image.draw(in: CGRect(x: -image.size.width / 2, y: -image.size.height / 2, width: image.size.width, height: image.size.height),
+            let ink = folded ? Glyphs.inkOffset(image) : .zero
+            image.draw(in: CGRect(x: -image.size.width / 2 - ink.x, y: -image.size.height / 2 - ink.y, width: image.size.width, height: image.size.height),
                        from: .zero, operation: .sourceOver, fraction: alpha)
             ctx.restoreGState()
         case let .battery(level, plugged, charging, percent):
@@ -329,6 +358,10 @@ struct MarkRenderer {
 }
 
 extension Reading.Glyph {
+    var isPlugged: Bool {
+        if case let .battery(_, plugged, _, _) = self { plugged } else { false }
+    }
+
     var isBattery: Bool { if case .battery = self { true } else { false } }
 }
 

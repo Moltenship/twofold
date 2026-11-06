@@ -47,7 +47,8 @@ One status item replaces three. The ring, the center and the dots each carry a r
 - Same geometry as the alternative: ring from 215° sweeping 256° clockwise, four dots on the same circle in the gap, glyph or number in the center. Sizes scale with Icon Size.
 - Drawn by Twofold, not composed from images, so every frame of the unfold is the same code path as the resting mark. Symbols are rendered at the size they appear, never as scaled bitmaps, so they stay sharp at any icon size and in the settings previews.
 - Lit dots = the value in quarters, rounded, at least one when the value is above zero. Unlit dots are smaller and dim.
-- Center shows a glyph for Wi-Fi, Bluetooth, Volume and Network, and the number for Battery, Memory, CPU and Disk.
+- Center shows a glyph for Wi-Fi, Bluetooth, Volume and Network, and the number for Battery, Memory, CPU and Disk. Folded glyphs are semibold and centered on their ink, not their image box.
+- While the Mac is plugged in, a battery ring ends in a bolt cut out of the line at its tip.
 - Accessibility description names each slot's reading, as the alternative does.
 
 ### 02 Unfold
@@ -73,7 +74,7 @@ One status item replaces three. The ring, the center and the dots each carry a r
 - The ring value is signal quality from RSSI.
 
 ### 06 Bluetooth
-- Paired devices with a glyph by device class and the connection state. Clicking a device connects or disconnects it.
+- Paired devices with a glyph by device class and the connection state. Apple and Beats headphones get their model's system symbol (AirPods, AirPods Pro, AirPods Max, Powerbeats…) from the product ID, here and in sound outputs and moments. Clicking a device connects or disconnects it.
 - Battery levels only where macOS exposes them publicly (HID devices through IOKit). AirPods battery has no public API; leave it out rather than scrape.
 
 ### 07 Sound

@@ -123,7 +123,9 @@ final class StatusController: NSObject, NSPopoverDelegate {
             return
         }
         if t == 1, target == 1 {
-            let x = button.convert(event.locationInWindow, from: nil).x
+            // The action's event sits at the button's center whatever was clicked, so ask where the pointer is.
+            guard let window = button.window else { return }
+            let x = button.convert(window.convertPoint(fromScreen: NSEvent.mouseLocation), from: nil).x
             if let slot = renderer.slot(atX: x, width: button.bounds.width, height: height) {
                 let metric = [Prefs.shared.ring, Prefs.shared.center, Prefs.shared.dots][slot]
                 show(page: metric.module, from: renderer.slotFrame(slot, width: button.bounds.width, height: height))

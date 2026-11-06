@@ -9,10 +9,12 @@ struct BluetoothDevice: Identifiable, Hashable {
     var connected: Bool
     var kind: Kind
     var battery: Int?
+    /// Apple's product ID for Apple and Beats devices, 0 otherwise.
+    var productID = 0
 
     var symbol: String {
         switch kind {
-        case .headphones: headphonesSymbol(name)
+        case .headphones: headphonesSymbol(name, productID: productID)
         case .audio: "hifispeaker"
         case .keyboard: "keyboard"
         case .mouse: "computermouse"
@@ -93,7 +95,11 @@ final class Bluetooth: NSObject {
         case kBluetoothDeviceClassMajorWearable: kind = .watch
         default: kind = name.localizedCaseInsensitiveContains("airpods") ? .headphones : .other
         }
-        return BluetoothDevice(id: d.addressString ?? name, name: name, connected: d.isConnected(), kind: kind, battery: batteries[name])
+        // IOBluetoothDevice answers productID and vendorID without declaring them.
+        func number(_ key: String) -> Int { d.responds(to: NSSelectorFromString(key)) ? d.value(forKey: key) as? Int ?? 0 : 0 }
+        let apple = number("vendorID") == 0x004C
+        return BluetoothDevice(id: d.addressString ?? name, name: name, connected: d.isConnected(), kind: kind, battery: batteries[name],
+                               productID: apple ? number("productID") : 0)
     }
 
     /// Battery levels that HID devices (keyboards, mice, trackpads) publish in the IO registry, by product name.

@@ -65,9 +65,9 @@ enum Thickness: String, CaseIterable, Codable {
     var title: String { rawValue.capitalized }
     var width: CGFloat {
         switch self {
-        case .thin: 1.35
-        case .regular: 1.9
-        case .bold: 2.6
+        case .thin: 1.55
+        case .regular: 2.17
+        case .bold: 2.95
         }
     }
 }

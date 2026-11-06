@@ -24,6 +24,42 @@ enum Glyphs {
         return image
     }
 
+    /// How far a symbol's ink box sits from its image's center. Symbol images round their size to whole points,
+    /// which leaves the ink up to half a point off-center.
+    static func inkOffset(_ image: NSImage) -> CGPoint {
+        let b = inkBounds(image)
+        return CGPoint(x: b.midX - image.size.width / 2, y: b.midY - image.size.height / 2)
+    }
+
+    /// A symbol's ink box in its image's coordinates.
+    static func inkBounds(_ image: NSImage) -> CGRect {
+        let id = ObjectIdentifier(image)
+        if let bounds = inkBounds[id] { return bounds }
+        let scale: CGFloat = 4
+        let w = Int(image.size.width * scale), h = Int(image.size.height * scale)
+        guard w > 0, h > 0, let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: w, pixelsHigh: h, bitsPerSample: 8, samplesPerPixel: 4,
+                                                       hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: w * 4, bitsPerPixel: 32)
+        else { return CGRect(origin: .zero, size: image.size) }
+        rep.size = image.size
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
+        image.draw(in: CGRect(origin: .zero, size: image.size))
+        NSGraphicsContext.restoreGraphicsState()
+        guard let data = rep.bitmapData else { return CGRect(origin: .zero, size: image.size) }
+        var minX = w, maxX = -1, minY = h, maxY = -1
+        for y in 0 ..< h { for x in 0 ..< w where data[(y * w + x) * 4 + 3] > 80 {
+            minX = min(minX, x); maxX = max(maxX, x); minY = min(minY, y); maxY = max(maxY, y)
+        } }
+        // Rows run top down in the bitmap.
+        let bounds = maxX < 0 ? CGRect(origin: .zero, size: image.size)
+            : CGRect(x: CGFloat(minX) / scale, y: CGFloat(h - 1 - maxY) / scale, width: CGFloat(maxX - minX + 1) / scale, height: CGFloat(maxY - minY + 1) / scale)
+        if inkBounds.count > 400 { inkBounds.removeAll() }
+        inkBounds[id] = bounds
+        return bounds
+    }
+
+    private static var inkBounds: [ObjectIdentifier: CGRect] = [:]
+
     static func rounded(size: CGFloat) -> NSFont {
         let base = NSFont.systemFont(ofSize: size, weight: .bold)
         guard let descriptor = base.fontDescriptor.withDesign(.rounded) else { return base }
@@ -56,22 +92,25 @@ enum Glyphs {
         ctx.fill(CGRect(x: body.minX, y: body.minY, width: body.width * level, height: body.height))
         ctx.restoreGState()
 
-        let font = NSFont.systemFont(ofSize: 10.5, weight: .semibold)
-        let text = percent ? "\(Int((level * 100).rounded()))" as NSString : nil
-        let textWidth = text?.size(withAttributes: [.font: font]).width ?? 0
-        let bolt = plugged ? symbol("bolt.fill", point: 7.5, weight: .regular, color: .black) : nil
-        let boltWidth = bolt.map { $0.size.width - 1.5 } ?? 0
-        if text != nil || bolt != nil {
+        // Laid out by ink to match the system item pixel for pixel; its digits sit half a point above center.
+        let line = percent ? CTLineCreateWithAttributedString(NSAttributedString(string: "\(Int((level * 100).rounded()))", attributes: [
+            .font: NSFont.systemFont(ofSize: 9.5, weight: .semibold), .kern: 0.5, .foregroundColor: NSColor.black,
+        ])) : nil
+        let textInk = line.map { CTLineGetImageBounds($0, ctx) } ?? .zero
+        let bolt = plugged ? symbol("bolt.fill", point: 7, weight: .regular, color: .black) : nil
+        let boltInk = bolt.map(inkBounds) ?? .zero
+        if line != nil || bolt != nil {
             ctx.setBlendMode(.destinationOut)
-            let width = textWidth + (text != nil && bolt != nil ? 1 : 0) + boltWidth
-            var x = body.midX - width / 2
-            if let text {
-                let baseline = body.midY - font.capHeight / 2
-                text.draw(at: CGPoint(x: x, y: baseline + font.descender), withAttributes: [.font: font, .foregroundColor: NSColor.black])
-                x += textWidth + 1
+            let gap: CGFloat = line != nil && bolt != nil ? 1 : 0
+            var x = body.midX - (textInk.width + gap + boltInk.width) / 2
+            if let line {
+                ctx.textMatrix = .identity
+                ctx.textPosition = CGPoint(x: x - textInk.minX, y: body.midY - textInk.midY + 0.5)
+                CTLineDraw(line, ctx)
+                x += textInk.width + gap
             }
             if let bolt {
-                bolt.draw(in: CGRect(x: x - 0.75, y: body.midY - bolt.size.height / 2, width: bolt.size.width, height: bolt.size.height),
+                bolt.draw(in: CGRect(x: x - boltInk.minX, y: body.midY - boltInk.midY, width: bolt.size.width, height: bolt.size.height),
                           from: .zero, operation: .destinationOut, fraction: 1)
             }
         }

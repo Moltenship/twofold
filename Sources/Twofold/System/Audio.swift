@@ -11,7 +11,7 @@ struct AudioDevice: Identifiable, Hashable {
         switch transport {
         case kAudioDeviceTransportTypeBuiltIn: "laptopcomputer"
         case kAudioDeviceTransportTypeBluetooth, kAudioDeviceTransportTypeBluetoothLE:
-            headphonesSymbol(name)
+            SystemState.shared.bluetooth.devices.first { $0.name == name }?.symbol ?? headphonesSymbol(name)
         case kAudioDeviceTransportTypeAirPlay: "airplayaudio"
         case kAudioDeviceTransportTypeHDMI, kAudioDeviceTransportTypeDisplayPort: "tv"
         case kAudioDeviceTransportTypeUSB: "cable.connector"
@@ -20,8 +20,20 @@ struct AudioDevice: Identifiable, Hashable {
     }
 }
 
-/// The SF Symbol macOS uses for a pair of headphones, guessed from its name.
-func headphonesSymbol(_ name: String) -> String {
+/// The SF Symbol for a pair of headphones: by Apple product ID when there is one, else guessed from the name.
+func headphonesSymbol(_ name: String, productID: Int = 0) -> String {
+    switch productID {
+    case 0x2002, 0x200F: return "airpods"
+    case 0x2013: return "airpods.gen3"
+    case 0x2019, 0x201B: return "airpods.gen4"
+    case 0x200E, 0x2014, 0x2024, 0x2027: return "airpods.pro"
+    case 0x200A, 0x201F: return "airpods.max"
+    case 0x200B, 0x201D: return "beats.powerbeats.pro"
+    case 0x2011, 0x2016: return "beats.studiobuds"
+    case 0x2012: return "beats.fitpro"
+    case 0x2006, 0x2009, 0x200C, 0x2017, 0x2025: return "beats.headphones"
+    default: break
+    }
     let n = name.lowercased()
     return if n.contains("airpods max") { "airpods.max" }
     else if n.contains("airpods pro") { "airpods.pro" }
